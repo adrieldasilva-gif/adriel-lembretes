@@ -29,7 +29,6 @@ const WEEKDAYS = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quint
 // ─── GOOGLE SHEETS PARSER ────────────────────────────────────────────
 function parseCSV(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  // Pula linhas até achar o cabeçalho (linha com "ATIVIDADE")
   const headerIdx = lines.findIndex(l => l.toUpperCase().includes('ATIVIDADE'));
   if (headerIdx === -1) return [];
   const dataLines = lines.slice(headerIdx + 1);
@@ -37,36 +36,24 @@ function parseCSV(text) {
   return dataLines
     .filter(l => l && !l.startsWith(',,,'))
     .map((line, i) => {
-      // Parse CSV respeitando aspas
       const cols = parseCSVLine(line);
-      const atividade   = (cols[0] || '').trim();
-      const descricao   = (cols[1] || '').trim();
-      const frequencia  = normFreq((cols[2] || '').trim());
-      const lembrete    = (cols[3] || '').trim();
+      const atividade    = (cols[0] || '').trim();
+      const descricao    = (cols[1] || '').trim();
+      const frequencia   = normFreq((cols[2] || '').trim());
+      const lembrete     = (cols[3] || '').trim();
       const destinatario = (cols[4] || '').trim();
 
       if (!atividade) return null;
 
-      // Extrai dia do mês ou dia da semana do campo "Lembrete"
       const { diaMes, diaSemana } = parseLembrete(lembrete, frequencia);
-
-      // Infere categoria pelo nome da atividade e descrição
       const categoria = inferCategoria(atividade, descricao);
 
       return {
         id: `sheet_${i}`,
-        atividade,
-        descricao,
-        categoria,
-        frequencia,
-        diaMes,
-        diaSemana,
-        dataEspecifica: '',
-        destinatario,
-        contato: '',
-        observacao: lembrete,
-        ativo: true,
-        fromSheet: true,
+        atividade, descricao, categoria, frequencia,
+        diaMes, diaSemana, dataEspecifica: '',
+        destinatario, contato: '', observacao: lembrete,
+        ativo: true, fromSheet: true,
       };
     })
     .filter(Boolean);
@@ -99,31 +86,20 @@ function parseLembrete(lembrete, frequencia) {
   const lower = lembrete.toLowerCase();
   let diaMes = '';
   let diaSemana = '';
-
   if (frequencia === 'mensal') {
-    // "todo dia 20 de cada mês" → 20
     const match = lower.match(/dia\s+(\d{1,2})/);
     if (match) diaMes = parseInt(match[1]);
   }
-
   if (frequencia === 'semanal') {
-    // "toda terça feira" / "toda sexta feira"
     const map = {
-      'segunda': 'Segunda-feira',
-      'terca': 'Terça-feira',
-      'terça': 'Terça-feira',
-      'quarta': 'Quarta-feira',
-      'quinta': 'Quinta-feira',
-      'sexta': 'Sexta-feira',
-      'sabado': 'Sábado',
-      'sábado': 'Sábado',
-      'domingo': 'Domingo',
+      'segunda': 'Segunda-feira', 'terca': 'Terça-feira', 'terça': 'Terça-feira',
+      'quarta': 'Quarta-feira', 'quinta': 'Quinta-feira', 'sexta': 'Sexta-feira',
+      'sabado': 'Sábado', 'sábado': 'Sábado', 'domingo': 'Domingo',
     };
     for (const [key, val] of Object.entries(map)) {
       if (lower.includes(key)) { diaSemana = val; break; }
     }
   }
-
   return { diaMes, diaSemana };
 }
 
@@ -133,18 +109,15 @@ function inferCategoria(atividade, descricao) {
   if (text.includes('relatório') || text.includes('relatorio') || text.includes('exame')) return 'relatorios';
   if (text.includes('cobrança') || text.includes('cobranca')) return 'cobrancas';
   if (text.includes('pdi') || text.includes('colabora') || text.includes('equipe') || text.includes('processo')) return 'rh';
-  if (text.includes('reunião') || text.includes('reuniao') || text.includes('apresentação')) return 'reunioes';
-  if (text.includes('podcast')) return 'reunioes';
+  if (text.includes('reunião') || text.includes('reuniao') || text.includes('apresentação') || text.includes('podcast')) return 'reunioes';
   return 'pessoal';
 }
 
-// ─── DATE HELPERS ───────────────────────────────────────────────────
 function getTodayActivities(activities) {
   const now = new Date();
   const dayOfMonth = now.getDate();
   const dayOfWeek = WEEKDAYS[now.getDay()];
   const mmdd = `${String(now.getMonth()+1).padStart(2,'0')}/${String(dayOfMonth).padStart(2,'0')}`;
-
   return activities.filter(a => {
     if (!a.ativo) return false;
     if (a.frequencia === 'mensal') return Number(a.diaMes) === dayOfMonth;
@@ -165,7 +138,6 @@ function formatTime(d) {
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// ─── BLANK ACTIVITY ─────────────────────────────────────────────────
 function blankActivity() {
   return {
     id: Date.now().toString(),
@@ -176,31 +148,22 @@ function blankActivity() {
   };
 }
 
-// ─── VOICE PARSER ───────────────────────────────────────────────────
 function parseVoiceText(text) {
   const lower = text.toLowerCase();
   const activity = blankActivity();
   activity.atividade = text.split(' ').slice(0, 6).join(' ');
   activity.descricao = text;
   activity.categoria = inferCategoria(text, '');
-
   const diaMatch = text.match(/dia\s+(\d{1,2})/i);
   if (diaMatch) { activity.frequencia = 'mensal'; activity.diaMes = parseInt(diaMatch[1]); }
-
   WEEKDAYS.forEach(d => {
-    if (lower.includes(d.toLowerCase())) {
-      activity.frequencia = 'semanal';
-      activity.diaSemana = d;
-    }
+    if (lower.includes(d.toLowerCase())) { activity.frequencia = 'semanal'; activity.diaSemana = d; }
   });
-
   const destMatch = text.match(/para\s+([A-ZÁÉÍÓÚ][a-záéíóú]+(?:\s+[A-ZÁÉÍÓÚ][a-záéíóú]+)?)/);
   if (destMatch) activity.destinatario = destMatch[1];
-
   return activity;
 }
 
-// ─── LOCAL EXTRAS (atividades adicionadas manualmente no app) ────────
 const LOCAL_KEY = 'adriel_local_extras_v1';
 function loadLocalExtras() {
   try { const r = localStorage.getItem(LOCAL_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
@@ -209,7 +172,6 @@ function saveLocalExtras(data) {
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); } catch {}
 }
 
-// ─── MAIN APP ───────────────────────────────────────────────────────
 export default function App() {
   const [sheetActivities, setSheetActivities] = useState([]);
   const [localExtras, setLocalExtras] = useState(loadLocalExtras);
@@ -228,17 +190,14 @@ export default function App() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const recognitionRef = useRef(null);
 
-  // Combina atividades da planilha + extras locais
   const activities = [...sheetActivities, ...localExtras];
 
-  // ── FETCH PLANILHA ────────────────────────────────────────────────
   const fetchSheet = useCallback(async () => {
     try {
       const res = await fetch(SHEET_CSV_URL);
-      if (!res.ok) throw new Error('Erro ao buscar planilha');
+      if (!res.ok) throw new Error('erro');
       const text = await res.text();
-      const parsed = parseCSV(text);
-      setSheetActivities(parsed);
+      setSheetActivities(parseCSV(text));
       setLastSync(new Date());
       setSyncError(false);
     } catch {
@@ -254,13 +213,11 @@ export default function App() {
     return () => clearInterval(interval);
   }, [fetchSheet]);
 
-  // ── CLOCK ────────────────────────────────────────────────────────
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // ── PERSIST LOCAL EXTRAS ─────────────────────────────────────────
   useEffect(() => { saveLocalExtras(localExtras); }, [localExtras]);
 
   const showToast = useCallback((msg, type = 'ok') => {
@@ -268,23 +225,19 @@ export default function App() {
     setTimeout(() => setToast(null), 2800);
   }, []);
 
-  // ── VOICE ────────────────────────────────────────────────────────
   const startRecording = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { showToast('Reconhecimento de voz não suportado', 'err'); return; }
+    if (!SR) { showToast('Voz não suportada', 'err'); return; }
     const rec = new SR();
     rec.lang = 'pt-BR';
     rec.continuous = false;
     rec.interimResults = true;
     rec.onresult = (e) => {
-      const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
-      setVoiceText(transcript);
-      if (e.results[0].isFinal) {
-        setVoiceParsed(parseVoiceText(transcript));
-        setRecording(false);
-      }
+      const t = Array.from(e.results).map(r => r[0].transcript).join('');
+      setVoiceText(t);
+      if (e.results[0].isFinal) { setVoiceParsed(parseVoiceText(t)); setRecording(false); }
     };
-    rec.onerror = () => { setRecording(false); showToast('Erro ao gravar. Tente novamente.', 'err'); };
+    rec.onerror = () => { setRecording(false); showToast('Erro ao gravar', 'err'); };
     rec.onend = () => setRecording(false);
     recognitionRef.current = rec;
     rec.start();
@@ -293,10 +246,7 @@ export default function App() {
     setVoiceParsed(null);
   }, [showToast]);
 
-  const stopRecording = useCallback(() => {
-    recognitionRef.current?.stop();
-    setRecording(false);
-  }, []);
+  const stopRecording = useCallback(() => { recognitionRef.current?.stop(); setRecording(false); }, []);
 
   const acceptVoice = useCallback(() => {
     if (!voiceParsed) return;
@@ -306,7 +256,6 @@ export default function App() {
     setView('form');
   }, [voiceParsed]);
 
-  // ── CRUD (apenas para extras locais) ─────────────────────────────
   const saveActivity = useCallback((item) => {
     setLocalExtras(prev => {
       const exists = prev.find(a => a.id === item.id);
@@ -320,335 +269,206 @@ export default function App() {
   const deleteActivity = useCallback((id) => {
     setLocalExtras(prev => prev.filter(a => a.id !== id));
     setDeleteConfirm(null);
-    showToast('Atividade excluída', 'warn');
+    showToast('Excluído', 'warn');
     setView('all');
   }, [showToast]);
 
   const toggleActive = useCallback((id) => {
-    // Para itens da planilha, armazena override local
-    const isSheet = sheetActivities.find(a => a.id === id);
-    if (isSheet) {
+    if (sheetActivities.find(a => a.id === id)) {
       setSheetActivities(prev => prev.map(a => a.id === id ? { ...a, ativo: !a.ativo } : a));
     } else {
       setLocalExtras(prev => prev.map(a => a.id === id ? { ...a, ativo: !a.ativo } : a));
     }
   }, [sheetActivities]);
 
-  // ── COMPUTED ─────────────────────────────────────────────────────
   const todayItems = getTodayActivities(activities);
   const allFiltered = activities.filter(a => {
-    const matchText = !filter ||
-      a.atividade.toLowerCase().includes(filter.toLowerCase()) ||
-      a.destinatario.toLowerCase().includes(filter.toLowerCase()) ||
-      a.descricao.toLowerCase().includes(filter.toLowerCase());
+    const matchText = !filter || a.atividade.toLowerCase().includes(filter.toLowerCase()) || a.destinatario.toLowerCase().includes(filter.toLowerCase());
     const matchCat = !filterCat || a.categoria === filterCat;
     return matchText && matchCat;
   });
-
-  const grouped = todayItems.reduce((acc, a) => {
-    if (!acc[a.categoria]) acc[a.categoria] = [];
-    acc[a.categoria].push(a);
-    return acc;
-  }, {});
-
+  const grouped = todayItems.reduce((acc, a) => { if (!acc[a.categoria]) acc[a.categoria] = []; acc[a.categoria].push(a); return acc; }, {});
   const catOf = (id) => CATEGORIES.find(c => c.id === id) || CATEGORIES[4];
 
-  // ── RENDER ───────────────────────────────────────────────────────
   return (
-    <div style={styles.root}>
-      {/* HEADER */}
-      <header style={styles.header}>
-        <div style={styles.headerTop}>
+    <div style={S.root}>
+      <header style={S.header}>
+        <div style={S.headerTop}>
           <div>
-            <div style={styles.greeting}>Bom dia, Adriel</div>
-            <div style={styles.clock}>{formatTime(now)}</div>
+            <div style={S.greeting}>Bom dia, Adriel</div>
+            <div style={S.clock}>{formatTime(now)}</div>
           </div>
-          <div style={styles.dateBox}>
-            <div style={styles.dateDay}>{now.getDate()}</div>
-            <div style={styles.dateMonth}>{now.toLocaleDateString('pt-BR',{month:'short'}).replace('.','').toUpperCase()}</div>
+          <div style={S.dateBox}>
+            <div style={S.dateDay}>{now.getDate()}</div>
+            <div style={S.dateMonth}>{now.toLocaleDateString('pt-BR',{month:'short'}).replace('.','').toUpperCase()}</div>
           </div>
         </div>
-        <div style={styles.dateStr}>{formatDate(now)}</div>
-
-        {/* SYNC STATUS */}
-        <div style={styles.syncRow}>
-          {loading && <span style={styles.syncLoading}>⟳ Carregando planilha…</span>}
+        <div style={S.dateStr}>{formatDate(now)}</div>
+        <div style={S.syncRow}>
+          {loading && <span style={S.syncLoading}>⟳ Carregando planilha…</span>}
           {!loading && !syncError && lastSync && (
-            <span style={styles.syncOk}>
-              ✓ Planilha sincronizada · {lastSync.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}
-              <button onClick={fetchSheet} style={styles.syncBtn}>↻</button>
-            </span>
+            <span style={S.syncOk}>✓ Sincronizado {lastSync.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} <button onClick={fetchSheet} style={S.syncBtn}>↻</button></span>
           )}
-          {syncError && (
-            <span style={styles.syncErr}>
-              ⚠ Erro ao sincronizar
-              <button onClick={fetchSheet} style={styles.syncBtn}>Tentar novamente</button>
-            </span>
-          )}
+          {syncError && <span style={S.syncErr}>⚠ Erro ao sincronizar <button onClick={fetchSheet} style={S.syncBtn}>Tentar</button></span>}
         </div>
       </header>
 
-      {/* NAV */}
-      <nav style={styles.nav}>
-        {[
-          { id: 'today', label: `Hoje (${todayItems.length})` },
-          { id: 'all',   label: `Todas (${activities.length})` },
-        ].map(t => (
-          <button key={t.id} onClick={() => setView(t.id)} style={{
-            ...styles.navBtn, ...(view === t.id ? styles.navBtnActive : {})
-          }}>{t.label}</button>
+      <nav style={S.nav}>
+        {[{id:'today',label:`Hoje (${todayItems.length})`},{id:'all',label:`Todas (${activities.length})`}].map(t => (
+          <button key={t.id} onClick={() => setView(t.id)} style={{...S.navBtn,...(view===t.id?S.navBtnActive:{})}}>{t.label}</button>
         ))}
-        <button onClick={() => { setEditItem(blankActivity()); setView('form'); }} style={styles.navAdd}>+ Nova</button>
+        <button onClick={() => { setEditItem(blankActivity()); setView('form'); }} style={S.navAdd}>+ Nova</button>
       </nav>
 
-      {/* VOICE BAR */}
-      <div style={styles.voiceBar}>
-        <button
-          onMouseDown={startRecording} onTouchStart={startRecording}
-          onMouseUp={stopRecording}   onTouchEnd={stopRecording}
-          style={{ ...styles.voiceBtn, ...(recording ? styles.voiceBtnActive : {}) }}
-        >
-          <span style={styles.voiceIcon}>{recording ? '⏹' : '🎙'}</span>
-          <span style={styles.voiceLabel}>{recording ? 'Gravando…' : 'Segurar para falar'}</span>
+      <div style={S.voiceBar}>
+        <button onMouseDown={startRecording} onTouchStart={startRecording} onMouseUp={stopRecording} onTouchEnd={stopRecording}
+          style={{...S.voiceBtn,...(recording?S.voiceBtnActive:{})}}>
+          <span style={S.voiceIcon}>{recording ? '⏹' : '🎙'}</span>
+          <span style={S.voiceLabel}>{recording ? 'Gravando…' : 'Segurar para falar'}</span>
         </button>
         {voiceText && (
-          <div style={styles.voicePreview}>
-            <span style={styles.voiceTranscript}>"{voiceText}"</span>
-            {voiceParsed && (
-              <button onClick={acceptVoice} style={styles.voiceAccept}>Confirmar →</button>
-            )}
+          <div style={S.voicePreview}>
+            <span style={S.voiceTranscript}>"{voiceText}"</span>
+            {voiceParsed && <button onClick={acceptVoice} style={S.voiceAccept}>Confirmar →</button>}
           </div>
         )}
       </div>
 
-      {/* CONTENT */}
-      <main style={styles.main}>
-        {/* TODAY */}
+      <main style={S.main}>
         {view === 'today' && (
           <div>
             {loading ? (
-              <div style={styles.empty}>
-                <div style={styles.emptyIcon}>⟳</div>
-                <div style={styles.emptyTitle}>Carregando…</div>
-              </div>
+              <div style={S.empty}><div style={S.emptyIcon}>⟳</div><div style={S.emptyTitle}>Carregando…</div></div>
             ) : todayItems.length === 0 ? (
-              <div style={styles.empty}>
-                <div style={styles.emptyIcon}>✅</div>
-                <div style={styles.emptyTitle}>Nada para hoje</div>
-                <div style={styles.emptyText}>Nenhuma atividade programada para este dia.</div>
-              </div>
+              <div style={S.empty}><div style={S.emptyIcon}>✅</div><div style={S.emptyTitle}>Nada para hoje</div><div style={S.emptyText}>Nenhuma atividade programada.</div></div>
             ) : (
-              Object.entries(grouped)
-                .sort(([a],[b]) => a === 'urgente' ? -1 : b === 'urgente' ? 1 : 0)
-                .map(([catId, items]) => {
-                  const cat = catOf(catId);
-                  return (
-                    <div key={catId} style={styles.catSection}>
-                      <div style={styles.catHeader}>
-                        <span style={{ ...styles.catDot, background: cat.color }} />
-                        <span style={styles.catName}>{cat.icon} {cat.label}</span>
-                        <span style={styles.catCount}>{items.length}</span>
-                      </div>
-                      {items.map(a => (
-                        <ActivityCard key={a.id} activity={a} catColor={cat.color}
-                          onEdit={() => { setEditItem({...a}); setView('form'); }}
-                          onDelete={() => setDeleteConfirm(a.id)}
-                          onToggle={() => toggleActive(a.id)}
-                        />
-                      ))}
-                    </div>
-                  );
-                })
-            )}
-          </div>
-        )}
-
-        {/* ALL */}
-        {view === 'all' && (
-          <div>
-            <div style={styles.filterRow}>
-              <input style={styles.searchInput} placeholder="Buscar atividade ou pessoa…"
-                value={filter} onChange={e => setFilter(e.target.value)} />
-              <select style={styles.catSelect} value={filterCat} onChange={e => setFilterCat(e.target.value)}>
-                <option value="">Todas</option>
-                {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
-              </select>
-            </div>
-            {allFiltered.length === 0 ? (
-              <div style={styles.empty}>
-                <div style={styles.emptyIcon}>🔍</div>
-                <div style={styles.emptyTitle}>Nenhum resultado</div>
-              </div>
-            ) : (
-              allFiltered.map(a => {
-                const cat = catOf(a.categoria);
+              Object.entries(grouped).sort(([a],[b]) => a==='urgente'?-1:b==='urgente'?1:0).map(([catId, items]) => {
+                const cat = catOf(catId);
                 return (
-                  <ActivityCard key={a.id} activity={a} catColor={cat.color}
-                    onEdit={() => { setEditItem({...a}); setView('form'); }}
-                    onDelete={() => setDeleteConfirm(a.id)}
-                    onToggle={() => toggleActive(a.id)}
-                    showCat
-                  />
+                  <div key={catId} style={S.catSection}>
+                    <div style={S.catHeader}>
+                      <span style={{...S.catDot,background:cat.color}} />
+                      <span style={S.catName}>{cat.icon} {cat.label}</span>
+                      <span style={S.catCount}>{items.length}</span>
+                    </div>
+                    {items.map(a => <ActivityCard key={a.id} activity={a} catColor={cat.color} onEdit={() => { setEditItem({...a}); setView('form'); }} onDelete={() => setDeleteConfirm(a.id)} onToggle={() => toggleActive(a.id)} />)}
+                  </div>
                 );
               })
             )}
           </div>
         )}
 
-        {/* FORM */}
+        {view === 'all' && (
+          <div>
+            <div style={S.filterRow}>
+              <input style={S.searchInput} placeholder="Buscar…" value={filter} onChange={e => setFilter(e.target.value)} />
+              <select style={S.catSelect} value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+                <option value="">Todas</option>
+                {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+              </select>
+            </div>
+            {allFiltered.map(a => { const cat = catOf(a.categoria); return <ActivityCard key={a.id} activity={a} catColor={cat.color} onEdit={() => { setEditItem({...a}); setView('form'); }} onDelete={() => setDeleteConfirm(a.id)} onToggle={() => toggleActive(a.id)} showCat />; })}
+          </div>
+        )}
+
         {view === 'form' && editItem && (
-          <ActivityForm item={editItem} onSave={saveActivity}
-            onCancel={() => { setView('all'); setEditItem(null); }}
-            onDelete={() => setDeleteConfirm(editItem.id)}
-          />
+          <ActivityForm item={editItem} onSave={saveActivity} onCancel={() => { setView('all'); setEditItem(null); }} onDelete={() => setDeleteConfirm(editItem.id)} />
         )}
       </main>
 
-      {/* DELETE CONFIRM */}
       {deleteConfirm && (
-        <div style={styles.overlay}>
-          <div style={styles.dialog}>
-            <div style={styles.dialogTitle}>Excluir atividade?</div>
-            <div style={styles.dialogText}>Esta ação não pode ser desfeita.</div>
-            <div style={styles.dialogBtns}>
-              <button onClick={() => setDeleteConfirm(null)} style={styles.btnSecondary}>Cancelar</button>
-              <button onClick={() => deleteActivity(deleteConfirm)} style={styles.btnDanger}>Excluir</button>
+        <div style={S.overlay}>
+          <div style={S.dialog}>
+            <div style={S.dialogTitle}>Excluir atividade?</div>
+            <div style={S.dialogText}>Esta ação não pode ser desfeita.</div>
+            <div style={S.dialogBtns}>
+              <button onClick={() => setDeleteConfirm(null)} style={S.btnSecondary}>Cancelar</button>
+              <button onClick={() => deleteActivity(deleteConfirm)} style={S.btnDanger}>Excluir</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* TOAST */}
-      {toast && (
-        <div style={{ ...styles.toast, ...(toast.type==='err' ? styles.toastErr : toast.type==='warn' ? styles.toastWarn : {}) }}>
-          {toast.msg}
-        </div>
-      )}
+      {toast && <div style={{...S.toast,...(toast.type==='err'?S.toastErr:toast.type==='warn'?S.toastWarn:{})}}>{toast.msg}</div>}
     </div>
   );
 }
 
-// ─── ACTIVITY CARD ───────────────────────────────────────────────────
 function ActivityCard({ activity: a, catColor, onEdit, onDelete, onToggle, showCat }) {
   const cat = CATEGORIES.find(c => c.id === a.categoria) || CATEGORIES[4];
   return (
-    <div style={{ ...styles.card, opacity: a.ativo ? 1 : 0.45, borderLeft: `3px solid ${catColor}` }}>
-      <div style={styles.cardTop}>
-        <div style={styles.cardTitle}>{a.atividade}</div>
-        <div style={styles.cardActions}>
-          {a.fromSheet && <span style={styles.sheetBadge}>📊</span>}
-          <button onClick={onToggle} title={a.ativo ? 'Pausar' : 'Ativar'} style={styles.iconBtn}>{a.ativo ? '⏸' : '▶'}</button>
-          {!a.fromSheet && <button onClick={onEdit} title="Editar" style={styles.iconBtn}>✏️</button>}
-          {!a.fromSheet && <button onClick={onDelete} title="Excluir" style={styles.iconBtnDanger}>🗑</button>}
+    <div style={{...S.card, opacity:a.ativo?1:0.45, borderLeft:`3px solid ${catColor}`}}>
+      <div style={S.cardTop}>
+        <div style={S.cardTitle}>{a.atividade}</div>
+        <div style={S.cardActions}>
+          {a.fromSheet && <span style={S.sheetBadge}>📊</span>}
+          <button onClick={onToggle} style={S.iconBtn}>{a.ativo ? '⏸' : '▶'}</button>
+          {!a.fromSheet && <button onClick={onEdit} style={S.iconBtn}>✏️</button>}
+          {!a.fromSheet && <button onClick={onDelete} style={S.iconBtnDanger}>🗑</button>}
         </div>
       </div>
-      {a.descricao && <div style={styles.cardDesc}>{a.descricao}</div>}
-      <div style={styles.cardMeta}>
-        {showCat && <span style={{ ...styles.badge, background: catColor+'22', color: catColor }}>{cat.icon} {cat.label}</span>}
-        {a.destinatario && <span style={styles.badgeNeutral}>→ {a.destinatario}</span>}
-        {a.frequencia && <span style={styles.badgeNeutral}>{FREQUENCIES.find(f=>f.id===a.frequencia)?.label || a.frequencia}</span>}
-        {a.frequencia === 'mensal' && a.diaMes && <span style={styles.badgeNeutral}>dia {a.diaMes}</span>}
-        {a.frequencia === 'semanal' && a.diaSemana && <span style={styles.badgeNeutral}>{a.diaSemana}</span>}
+      {a.descricao && <div style={S.cardDesc}>{a.descricao}</div>}
+      <div style={S.cardMeta}>
+        {showCat && <span style={{...S.badge,background:catColor+'22',color:catColor}}>{cat.icon} {cat.label}</span>}
+        {a.destinatario && <span style={S.badgeNeutral}>→ {a.destinatario}</span>}
+        {a.frequencia && <span style={S.badgeNeutral}>{FREQUENCIES.find(f=>f.id===a.frequencia)?.label||a.frequencia}</span>}
+        {a.frequencia==='mensal' && a.diaMes && <span style={S.badgeNeutral}>dia {a.diaMes}</span>}
+        {a.frequencia==='semanal' && a.diaSemana && <span style={S.badgeNeutral}>{a.diaSemana}</span>}
       </div>
-      {a.observacao && <div style={styles.cardObs}>⚑ {a.observacao}</div>}
+      {a.observacao && <div style={S.cardObs}>⚑ {a.observacao}</div>}
     </div>
   );
 }
 
-// ─── ACTIVITY FORM ───────────────────────────────────────────────────
 function ActivityForm({ item, onSave, onCancel, onDelete }) {
   const [form, setForm] = useState(item);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const isNew = !item.atividade;
-
   return (
-    <div style={styles.form}>
-      <div style={styles.formHeader}>
-        <span style={styles.formTitle}>{isNew ? 'Nova atividade' : 'Editar atividade'}</span>
-        {!isNew && !item.fromSheet && <button onClick={onDelete} style={styles.formDelete}>Excluir</button>}
+    <div style={S.form}>
+      <div style={S.formHeader}>
+        <span style={S.formTitle}>{!item.atividade ? 'Nova atividade' : 'Editar'}</span>
+        {item.atividade && !item.fromSheet && <button onClick={onDelete} style={S.formDelete}>Excluir</button>}
       </div>
-      {item.fromSheet && (
-        <div style={styles.sheetNote}>📊 Esta atividade vem da planilha. Edite diretamente no Google Sheets.</div>
-      )}
-
-      <div style={styles.formGroup}>
-        <label style={styles.label}>Atividade *</label>
-        <input style={styles.input} value={form.atividade} onChange={e=>set('atividade',e.target.value)} placeholder="Nome curto da atividade" disabled={form.fromSheet} />
+      {item.fromSheet && <div style={S.sheetNote}>📊 Edite diretamente no Google Sheets.</div>}
+      <div style={S.formGroup}><label style={S.label}>Atividade *</label><input style={S.input} value={form.atividade} onChange={e=>set('atividade',e.target.value)} disabled={form.fromSheet} /></div>
+      <div style={S.formGroup}><label style={S.label}>Descrição</label><textarea style={S.textarea} value={form.descricao} onChange={e=>set('descricao',e.target.value)} rows={2} disabled={form.fromSheet} /></div>
+      <div style={S.formRow}>
+        <div style={{flex:1}}><label style={S.label}>Categoria</label><select style={S.select} value={form.categoria} onChange={e=>set('categoria',e.target.value)}>{CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}</select></div>
+        <div style={{flex:1}}><label style={S.label}>Frequência</label><select style={S.select} value={form.frequencia} onChange={e=>set('frequencia',e.target.value)} disabled={form.fromSheet}>{FREQUENCIES.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select></div>
       </div>
-      <div style={styles.formGroup}>
-        <label style={styles.label}>Descrição</label>
-        <textarea style={styles.textarea} value={form.descricao} onChange={e=>set('descricao',e.target.value)} rows={2} disabled={form.fromSheet} />
+      {form.frequencia==='mensal' && <div style={S.formGroup}><label style={S.label}>Dia do mês</label><input style={S.input} type="number" min="1" max="31" value={form.diaMes} onChange={e=>set('diaMes',e.target.value)} disabled={form.fromSheet} /></div>}
+      {form.frequencia==='semanal' && <div style={S.formGroup}><label style={S.label}>Dia da semana</label><select style={S.select} value={form.diaSemana} onChange={e=>set('diaSemana',e.target.value)} disabled={form.fromSheet}><option value="">Selecione</option>{WEEKDAYS.map(d=><option key={d} value={d}>{d}</option>)}</select></div>}
+      <div style={S.formRow}>
+        <div style={{flex:1}}><label style={S.label}>Destinatário</label><input style={S.input} value={form.destinatario} onChange={e=>set('destinatario',e.target.value)} disabled={form.fromSheet} /></div>
+        <div style={{flex:1}}><label style={S.label}>Canal</label><input style={S.input} value={form.contato} onChange={e=>set('contato',e.target.value)} /></div>
       </div>
-      <div style={styles.formRow}>
-        <div style={{ flex:1 }}>
-          <label style={styles.label}>Categoria</label>
-          <select style={styles.select} value={form.categoria} onChange={e=>set('categoria',e.target.value)}>
-            {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
-          </select>
-        </div>
-        <div style={{ flex:1 }}>
-          <label style={styles.label}>Frequência</label>
-          <select style={styles.select} value={form.frequencia} onChange={e=>set('frequencia',e.target.value)} disabled={form.fromSheet}>
-            {FREQUENCIES.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-          </select>
-        </div>
-      </div>
-      {form.frequencia === 'mensal' && (
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Dia do mês</label>
-          <input style={styles.input} type="number" min="1" max="31" value={form.diaMes} onChange={e=>set('diaMes',e.target.value)} disabled={form.fromSheet} />
-        </div>
-      )}
-      {form.frequencia === 'semanal' && (
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Dia da semana</label>
-          <select style={styles.select} value={form.diaSemana} onChange={e=>set('diaSemana',e.target.value)} disabled={form.fromSheet}>
-            <option value="">Selecione</option>
-            {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-        </div>
-      )}
-      <div style={styles.formRow}>
-        <div style={{ flex:1 }}>
-          <label style={styles.label}>Destinatário</label>
-          <input style={styles.input} value={form.destinatario} onChange={e=>set('destinatario',e.target.value)} disabled={form.fromSheet} />
-        </div>
-        <div style={{ flex:1 }}>
-          <label style={styles.label}>Canal</label>
-          <input style={styles.input} value={form.contato} onChange={e=>set('contato',e.target.value)} placeholder="WhatsApp / E-mail…" />
-        </div>
-      </div>
-      <div style={styles.formGroup}>
-        <label style={styles.label}>Observação</label>
-        <input style={styles.input} value={form.observacao} onChange={e=>set('observacao',e.target.value)} />
-      </div>
-      <div style={styles.formGroup}>
-        <label style={styles.toggleRow}>
-          <span style={styles.label}>Ativo</span>
-          <div onClick={() => set('ativo', !form.ativo)} style={{ ...styles.toggle, background: form.ativo ? '#c9a84c' : '#333' }}>
-            <div style={{ ...styles.toggleThumb, transform: form.ativo ? 'translateX(18px)' : 'translateX(2px)' }} />
+      <div style={S.formGroup}><label style={S.label}>Observação</label><input style={S.input} value={form.observacao} onChange={e=>set('observacao',e.target.value)} /></div>
+      <div style={S.formGroup}>
+        <label style={S.toggleRow}><span style={S.label}>Ativo</span>
+          <div onClick={() => set('ativo', !form.ativo)} style={{...S.toggle, background:form.ativo?'#c9a84c':'#333'}}>
+            <div style={{...S.toggleThumb, transform:form.ativo?'translateX(18px)':'translateX(2px)'}} />
           </div>
         </label>
       </div>
-      <div style={styles.formFooter}>
-        <button onClick={onCancel} style={styles.btnSecondary}>Cancelar</button>
-        {!item.fromSheet && <button onClick={() => onSave(form)} style={styles.btnPrimary} disabled={!form.atividade}>Salvar</button>}
+      <div style={S.formFooter}>
+        <button onClick={onCancel} style={S.btnSecondary}>Cancelar</button>
+        {!item.fromSheet && <button onClick={() => onSave(form)} style={S.btnPrimary} disabled={!form.atividade}>Salvar</button>}
       </div>
     </div>
   );
 }
 
-// ─── STYLES ──────────────────────────────────────────────────────────
-const styles = {
-  root: { minHeight:'100dvh', background:'#0a0a0a', color:'#e8e4d9', fontFamily:"'DM Sans', sans-serif", maxWidth:480, margin:'0 auto', position:'relative', paddingBottom:40 },
+const S = {
+  root: { minHeight:'100dvh', background:'#0a0a0a', color:'#e8e4d9', fontFamily:"'DM Sans', sans-serif", maxWidth:480, margin:'0 auto', paddingBottom:40 },
   header: { padding:'52px 24px 16px', borderBottom:'1px solid #1e1e1e', background:'linear-gradient(180deg, #111 0%, #0a0a0a 100%)' },
   headerTop: { display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 },
   greeting: { fontFamily:"'DM Serif Display', serif", fontSize:26, color:'#e8e4d9', letterSpacing:'-0.5px' },
-  clock: { fontSize:13, color:'#c9a84c', fontVariantNumeric:'tabular-nums', letterSpacing:'0.05em', marginTop:2 },
+  clock: { fontSize:13, color:'#c9a84c', fontVariantNumeric:'tabular-nums', marginTop:2 },
   dateBox: { textAlign:'center', background:'#c9a84c', borderRadius:8, padding:'6px 12px', minWidth:52 },
   dateDay: { fontFamily:"'DM Serif Display', serif", fontSize:24, color:'#0a0a0a', lineHeight:1 },
   dateMonth: { fontSize:10, color:'#0a0a0a', fontWeight:500, letterSpacing:'0.1em', marginTop:2 },
-  dateStr: { fontSize:12, color:'#666', letterSpacing:'0.03em', marginBottom:8 },
+  dateStr: { fontSize:12, color:'#666', marginBottom:8 },
   syncRow: { display:'flex', alignItems:'center', gap:8, marginTop:6 },
   syncLoading: { fontSize:11, color:'#888', fontStyle:'italic' },
   syncOk: { fontSize:11, color:'#5a9e6f', display:'flex', alignItems:'center', gap:6 },
@@ -659,7 +479,7 @@ const styles = {
   navBtnActive: { background:'#1a1a1a', border:'1px solid #c9a84c', color:'#c9a84c' },
   navAdd: { padding:'8px 14px', background:'#c9a84c', border:'none', borderRadius:8, color:'#0a0a0a', fontSize:13, fontWeight:500, cursor:'pointer', fontFamily:"'DM Sans', sans-serif", whiteSpace:'nowrap' },
   voiceBar: { padding:'12px 16px', borderBottom:'1px solid #1a1a1a', background:'#0d0d0d' },
-  voiceBtn: { display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 16px', background:'#141414', border:'1px solid #2a2a2a', borderRadius:10, cursor:'pointer', fontFamily:"'DM Sans', sans-serif", transition:'all 0.2s' },
+  voiceBtn: { display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 16px', background:'#141414', border:'1px solid #2a2a2a', borderRadius:10, cursor:'pointer', fontFamily:"'DM Sans', sans-serif" },
   voiceBtnActive: { background:'#1a1209', border:'1px solid #c9a84c', boxShadow:'0 0 0 3px #c9a84c22' },
   voiceIcon: { fontSize:18 },
   voiceLabel: { fontSize:13, color:'#888' },
@@ -672,15 +492,49 @@ const styles = {
   catDot: { width:8, height:8, borderRadius:'50%', flexShrink:0 },
   catName: { fontSize:13, fontWeight:500, color:'#888', letterSpacing:'0.05em', textTransform:'uppercase', flex:1 },
   catCount: { fontSize:11, color:'#555', background:'#1a1a1a', padding:'2px 8px', borderRadius:99 },
-  card: { background:'#111', borderRadius:12, padding:'14px 16px', marginBottom:10, borderLeft:'3px solid #333', transition:'opacity 0.2s' },
+  card: { background:'#111', borderRadius:12, padding:'14px 16px', marginBottom:10, transition:'opacity 0.2s' },
   cardTop: { display:'flex', alignItems:'flex-start', gap:8, marginBottom:4 },
   cardTitle: { flex:1, fontSize:15, fontWeight:500, color:'#e8e4d9', lineHeight:1.3 },
   cardActions: { display:'flex', gap:4, flexShrink:0, alignItems:'center' },
   sheetBadge: { fontSize:12, opacity:0.6 },
-  iconBtn: { background:'transparent', border:'none', cursor:'pointer', fontSize:14, padding:'2px 4px', borderRadius:4 },
-  iconBtnDanger: { background:'transparent', border:'none', cursor:'pointer', fontSize:14, padding:'2px 4px', borderRadius:4, opacity:0.6 },
+  iconBtn: { background:'transparent', border:'none', cursor:'pointer', fontSize:14, padding:'2px 4px' },
+  iconBtnDanger: { background:'transparent', border:'none', cursor:'pointer', fontSize:14, padding:'2px 4px', opacity:0.6 },
   cardDesc: { fontSize:13, color:'#777', marginBottom:8, lineHeight:1.4 },
   cardMeta: { display:'flex', flexWrap:'wrap', gap:6, marginBottom:4 },
   badge: { fontSize:11, padding:'3px 8px', borderRadius:99, fontWeight:500 },
   badgeNeutral: { fontSize:11, padding:'3px 8px', borderRadius:99, background:'#1e1e1e', color:'#888' },
-  cardObs: { fontSiz
+  cardObs: { fontSize:11, color:'#555', marginTop:6, fontStyle:'italic' },
+  filterRow: { display:'flex', gap:8, marginBottom:16 },
+  searchInput: { flex:1, padding:'10px 12px', background:'#111', border:'1px solid #2a2a2a', borderRadius:8, color:'#e8e4d9', fontSize:14, fontFamily:"'DM Sans', sans-serif", outline:'none' },
+  catSelect: { padding:'10px 8px', background:'#111', border:'1px solid #2a2a2a', borderRadius:8, color:'#888', fontSize:13, fontFamily:"'DM Sans', sans-serif", outline:'none' },
+  empty: { textAlign:'center', paddingTop:60, paddingBottom:60 },
+  emptyIcon: { fontSize:40, marginBottom:12 },
+  emptyTitle: { fontSize:18, fontFamily:"'DM Serif Display', serif", color:'#e8e4d9', marginBottom:6 },
+  emptyText: { fontSize:13, color:'#555' },
+  form: { background:'#0d0d0d' },
+  formHeader: { display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 },
+  formTitle: { fontFamily:"'DM Serif Display', serif", fontSize:22, color:'#e8e4d9' },
+  formDelete: { fontSize:12, color:'#d46b6b', background:'transparent', border:'1px solid #d46b6b33', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontFamily:"'DM Sans', sans-serif" },
+  sheetNote: { fontSize:12, color:'#6b9fd4', background:'#0d1520', border:'1px solid #1a2a3a', borderRadius:8, padding:'10px 12px', marginBottom:16 },
+  formGroup: { marginBottom:16 },
+  formRow: { display:'flex', gap:12, marginBottom:16 },
+  label: { display:'block', fontSize:11, color:'#666', fontWeight:500, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:6 },
+  input: { width:'100%', padding:'10px 12px', background:'#111', border:'1px solid #222', borderRadius:8, color:'#e8e4d9', fontSize:14, fontFamily:"'DM Sans', sans-serif", outline:'none' },
+  textarea: { width:'100%', padding:'10px 12px', background:'#111', border:'1px solid #222', borderRadius:8, color:'#e8e4d9', fontSize:14, fontFamily:"'DM Sans', sans-serif", outline:'none', resize:'vertical' },
+  select: { width:'100%', padding:'10px 12px', background:'#111', border:'1px solid #222', borderRadius:8, color:'#e8e4d9', fontSize:14, fontFamily:"'DM Sans', sans-serif", outline:'none' },
+  toggleRow: { display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer' },
+  toggle: { width:42, height:24, borderRadius:99, transition:'background 0.2s', position:'relative', flexShrink:0 },
+  toggleThumb: { position:'absolute', top:3, width:18, height:18, background:'#fff', borderRadius:'50%', transition:'transform 0.2s' },
+  formFooter: { display:'flex', gap:10, marginTop:24, paddingTop:16, borderTop:'1px solid #1a1a1a' },
+  btnPrimary: { flex:1, padding:'12px', background:'#c9a84c', border:'none', borderRadius:8, color:'#0a0a0a', fontSize:14, fontWeight:500, cursor:'pointer', fontFamily:"'DM Sans', sans-serif" },
+  btnSecondary: { flex:1, padding:'12px', background:'transparent', border:'1px solid #2a2a2a', borderRadius:8, color:'#888', fontSize:14, cursor:'pointer', fontFamily:"'DM Sans', sans-serif" },
+  btnDanger: { flex:1, padding:'12px', background:'#d46b6b', border:'none', borderRadius:8, color:'#fff', fontSize:14, fontWeight:500, cursor:'pointer', fontFamily:"'DM Sans', sans-serif" },
+  overlay: { position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100, padding:24 },
+  dialog: { background:'#111', borderRadius:16, padding:24, width:'100%', maxWidth:320, border:'1px solid #2a2a2a' },
+  dialogTitle: { fontFamily:"'DM Serif Display', serif", fontSize:20, color:'#e8e4d9', marginBottom:8 },
+  dialogText: { fontSize:13, color:'#666', marginBottom:20 },
+  dialogBtns: { display:'flex', gap:10 },
+  toast: { position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#1a1a1a', border:'1px solid #2a2a2a', color:'#e8e4d9', padding:'12px 20px', borderRadius:99, fontSize:13, zIndex:200, whiteSpace:'nowrap', boxShadow:'0 4px 20px rgba(0,0,0,0.5)' },
+  toastErr: { background:'#1a0808', border:'1px solid #d46b6b44', color:'#d46b6b' },
+  toastWarn: { background:'#0d0d08', border:'1px solid #c9a84c44', color:'#c9a84c' },
+};
