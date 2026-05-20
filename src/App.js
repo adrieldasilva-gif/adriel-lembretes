@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 // ─── CONFIG ─────────────────────────────────────────────────────────
 const SHEET_ID = '1CAGcyhkH4-3JZZpHDmpqpZ6rwIk-UHst';
-const SHEET_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=0`;
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSuCNTWYJOSI__LSvV-t3JFJoUAdsM4P1N8rpPeGinRIdg9VrDmNV8go1vxOJbxkIrJ11q72JR0wPw8/pub?gid=2144223317&single=true&output=csv';
 const REFRESH_INTERVAL = 60000; // atualiza a cada 60 segundos
 
 const CATEGORIES = [
