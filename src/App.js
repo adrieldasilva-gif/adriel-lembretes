@@ -605,9 +605,9 @@ const styles = {
   toggle: { width: 42, height: 24, borderRadius: 99, transition: 'background 0.2s', position: 'relative', flexShrink: 0 },
   toggleThumb: { position: 'absolute', top: 3, width: 18, height: 18, background: '#fff', borderRadius: '50%', transition: 'transform 0.2s' },
   formFooter: { display: 'flex', gap: 10, marginTop: 24, paddingTop: 16, borderTop: '1px solid #1a1a1a' },
-  btnPrimary: { flex: 1, padding: '12px', background: '#c9a84c', border: 'none', borderRadius: 8, color: '#0a0a0a', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif' },
-  btnSecondary: { flex: 1, padding: '12px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif'" },
-  btnDanger: { flex: 1, padding: '12px', background: '#d46b6b', border: 'none', borderRadius: 8, color: '#fff', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif'" },
+  btnPrimary: { flex: 1, padding: '12px', background: '#c9a84c', border: 'none', borderRadius: 8, color: '#0a0a0a', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
+  btnSecondary: { flex: 1, padding: '12px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: 8, color: '#888', fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
+  btnDanger: { flex: 1, padding: '12px', background: '#d46b6b', border: 'none', borderRadius: 8, color: '#fff', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" },
 
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 24 },
   dialog: { background: '#111', borderRadius: 16, padding: 24, width: '100%', maxWidth: 320, border: '1px solid #2a2a2a' },
